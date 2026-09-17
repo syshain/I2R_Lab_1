@@ -13,8 +13,7 @@ import os
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_DATA_DIR = _SCRIPT_DIR.parent / 'data' / 'camera_calibration_images'
-
+_DATA_DIR = _SCRIPT_DIR.parent / 'data' 
 
 def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_mm=25.0):
     """Estimate intrinsics + distortion from chessboard images."""
@@ -34,6 +33,7 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_m
     bad_images = []
     
     # Get list of images (resolved against the data directory)
+    print("Searching ", str(_DATA_DIR / images_path))
     images = glob.glob(str(_DATA_DIR / images_path))
     print(f"Found {len(images)} images in {_DATA_DIR}")
     
@@ -200,7 +200,7 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_m
                    cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         out_path = report_dir / f'report_{i:03d}.jpg'
         cv.imwrite(str(out_path), img)
-    print(f"✓ Saved {len(good_images)} annotated images -> data/calibration_report/")
+    print(f"✓ Saved {len(good_images)} annotated images")
 
     return camera_matrix, dist_coeffs, rms_reproj_error
 
@@ -209,7 +209,7 @@ if __name__ == "__main__":
     # Configuration - modify these to match your setup.
     CHESSBOARD_SIZE = (10, 7)  # (inner corners per row, inner corners per column)
     SQUARE_SIZE_MM = 15.0      # measure your printed chessboard square size in mm
-    IMAGE_PATTERN = "camera_calibration_images/calib_*.jpg"
+    IMAGE_PATTERN = os.path.join("camera_calibration_images","calib_*.jpg")
 
     print(f"Chessboard: {CHESSBOARD_SIZE[0]}x{CHESSBOARD_SIZE[1]} inner corners, "
           f"{SQUARE_SIZE_MM} mm squares, pattern '{IMAGE_PATTERN}'")

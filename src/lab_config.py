@@ -16,7 +16,7 @@ ROBOT_IP = os.environ.get('ROBOT_IP', '192.168.1.153')
 
 # USB device index of the wrist-mounted camera. Find it with:
 #   Linux:  v4l2-ctl --list-devices
-CAMERA_INDEX = int(os.environ.get('CAMERA_INDEX', '4'))
+CAMERA_INDEX = int(os.environ.get('CAMERA_INDEX', '1'))
 
 # Capture resolution used by the calibration pipelines.
 FRAME_WIDTH = 1920

@@ -10,7 +10,7 @@ from pathlib import Path
 from lab_config import CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_DATA_DIR = _SCRIPT_DIR.parent / 'data'
+_DATA_DIR = _SCRIPT_DIR.parent / 'data' / 'camera_calibration_images'
 
 
 def _lock_exposure_focus(cap):

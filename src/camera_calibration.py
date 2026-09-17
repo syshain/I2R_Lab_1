@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_DATA_DIR = _SCRIPT_DIR.parent / 'data'
+_DATA_DIR = _SCRIPT_DIR.parent / 'data' / 'camera_calibration_images'
 
 
 def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_mm=25.0):
@@ -106,12 +106,16 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_m
         objpoints, imgpoints, (w, h), None, None
     )
     
-    # Per-image mean L2 reprojection error (secondary diagnostic)
+    # Per-image mean L2 reprojection error (secondary diagnostic).
+    # NOTE: imgpoints[i] comes back shaped (N,1,2); flatten to (N,2) before
+    # comparing against the reprojected points, otherwise broadcasting blows up.
     per_image_errors = []
     for i in range(len(objpoints)):
+        detected = imgpoints[i].reshape(-1, 2)
         imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i],
                                          camera_matrix, dist_coeffs)
-        err = np.linalg.norm(imgpoints[i] - imgpoints2.reshape(-1, 2), axis=1).mean()
+        reprojected = imgpoints2.reshape(-1, 2)
+        err = np.linalg.norm(detected - reprojected, axis=1).mean()
         per_image_errors.append(err)
     mean_per_corner = np.mean(per_image_errors)
     
@@ -175,15 +179,37 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_m
         f.write("Distortion Coefficients:\n")
         f.write(str(dist_coeffs.flatten()) + "\n")
     print("✓ Saved: calibration_parameters.txt")
-    
+
+    # Write annotated report images (detected = green, reprojected = red)
+    report_dir = _DATA_DIR / 'calibration_report'
+    report_dir.mkdir(exist_ok=True)
+    for i, fname in enumerate(good_images):
+        img = cv.imread(fname)
+        if img is None:
+            continue
+        # Green circles: originally detected corners
+        cv.drawChessboardCorners(img, chessboard_size, imgpoints[i], True)
+        # Red crosses: reprojected corners under fitted model
+        reproj, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i],
+                                      camera_matrix, dist_coeffs)
+        reproj = reproj.reshape(-1, 2).astype(int)
+        for pt in reproj:
+            cv.circle(img, tuple(pt), 4, (0, 0, 255), -1)
+        # Legend
+        cv.putText(img, "Green: Detected   Red: Reprojected", (10, 25),
+                   cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        out_path = report_dir / f'report_{i:03d}.jpg'
+        cv.imwrite(str(out_path), img)
+    print(f"✓ Saved {len(good_images)} annotated images -> data/calibration_report/")
+
     return camera_matrix, dist_coeffs, rms_reproj_error
 
 
 if __name__ == "__main__":
     # Configuration - modify these to match your setup.
     CHESSBOARD_SIZE = (10, 7)  # (inner corners per row, inner corners per column)
-    SQUARE_SIZE_MM = 25.0      # measure your printed chessboard square size in mm
-    IMAGE_PATTERN = "calib_*.jpg"
+    SQUARE_SIZE_MM = 15.0      # measure your printed chessboard square size in mm
+    IMAGE_PATTERN = "camera_calibration_images/calib_*.jpg"
 
     print(f"Chessboard: {CHESSBOARD_SIZE[0]}x{CHESSBOARD_SIZE[1]} inner corners, "
           f"{SQUARE_SIZE_MM} mm squares, pattern '{IMAGE_PATTERN}'")

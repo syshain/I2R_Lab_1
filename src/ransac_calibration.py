@@ -466,7 +466,11 @@ if __name__ == "__main__":
         print("\n" + "="*60)
         print("STEP 3: Nonlinear Refinement")
         print("="*60)
-        T_ee_cam_refined = calibrator.refine_calibration(use_inliers=True)
+        # Refine on ALL poses (not just inliers) so the comparison against the
+        # baseline is fair: same data, same optimizer. RANSAC's advantage is in
+        # robust initialization (finding the right basin), not in discarding
+        # good data during the polish.
+        T_ee_cam_refined = calibrator.refine_calibration(use_inliers=False)
 
         # refine_calibration can return None (e.g. no usable initial guess).
         # Fall back to the raw RANSAC estimate so downstream steps always get

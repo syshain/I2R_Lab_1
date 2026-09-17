@@ -19,6 +19,7 @@ from scipy.spatial.transform import Rotation as R
 from xarm.wrapper import XArmAPI
 
 from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
+from fk_lite6 import fk_lite6
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DATA_DIR = _SCRIPT_DIR.parent / 'data'
@@ -30,29 +31,38 @@ _CORNER_ROLL = {0: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 
 
 def get_robot_end_effector_pose(arm):
-    """Return (T_base_ee, raw_pose) from the arm's current pose.
+    """Return (T_base_ee, joints_deg, raw_pose) from the arm's current state.
 
-    T_base_ee is a 4x4 transform; raw_pose is the controller's
-    [x, y, z, roll, pitch, yaw] (mm, deg) tuple kept verbatim so downstream
-    solvers can re-interpret the orientation under their own Euler convention.
+    T_base_ee is derived by forward kinematics from the reported joint angles
+    (fk_lite6), NOT taken from the controller's cartesian get_position(). This
+    keeps the hand-eye inputs consistent with the DH model used everywhere else
+    in Lab 1.
+
+    Returns:
+        T_base_ee   : 4x4 base->EE transform (translation in mm).
+        joints_deg  : list of 6 joint angles in DEGREES (as reported by SDK).
+        raw_pose    : controller's [x,y,z,roll,pitch,yaw] (mm,deg), kept only as
+                      a cross-check against the FK result.
     """
-    code, pose_data = arm.get_position()
-
+    code, angle_data = arm.get_angle()
     if code != 0:
-        print(f"Error getting position: {code}")
-        return None, None
+        print(f"Error getting angle: {code}")
+        return None, None, None
 
-    x, y, z, roll, pitch, yaw = pose_data
+    # SDK reports joint angles in degrees; FK wants radians.
+    joints_deg = [float(a) for a in angle_data]
+    q_rad = np.deg2rad(joints_deg)
+    T_base_ee = fk_lite6(q_rad)
 
-    r = R.from_euler('xyz', [roll, pitch, yaw], degrees=True)
-    rotation_matrix = r.as_matrix()
+    code_p, pose_data = arm.get_position()
+    if code_p != 0:
+        print(f"Warning: FK OK but get_position failed ({code_p}); skipping cross-check")
+        raw_pose = None
+    else:
+        x, y, z, roll, pitch, yaw = pose_data
+        raw_pose = [float(v) for v in (x, y, z, roll, pitch, yaw)]
 
-    T_base_ee = np.eye(4)
-    T_base_ee[:3, :3] = rotation_matrix
-    T_base_ee[:3, 3] = [x, y, z]
-
-    raw_pose = [float(x), float(y), float(z), float(roll), float(pitch), float(yaw)]
-    return T_base_ee, raw_pose
+    return T_base_ee, joints_deg, raw_pose
 
 
 class ArucoBoardDetector:
@@ -231,33 +241,39 @@ class ArucoBoardDetector:
             print("Failed to detect the ArUco board")
             return False
 
-        T_base_ee, raw_pose = self.get_robot_end_effector_pose()
+        T_base_ee, joints_deg, raw_pose = self.get_robot_end_effector_pose()
         if T_base_ee is None:
             print("Failed to read robot pose")
             return False
 
         self.calibration_data.append({
-            'T_base_ee': T_base_ee,
-            'robot_pose_raw': raw_pose,
+            'T_base_ee': T_base_ee,          # FK-derived (authoritative)
+            'robot_joints': joints_deg,      # [q1..q6] degrees, from get_angle()
+            'robot_pose_raw': raw_pose,      # cartesian cross-check (may be None)
             'T_cam_board': T_cam_board,
             'reproj_error_px': reproj,
             'timestamp': cv2.getTickCount()
         })
 
+        ee_pos = T_base_ee[:3, 3]
+        fk_rpy = R.from_matrix(T_base_ee[:3, :3]).as_euler('xyz', degrees=True)
+
         print(f"✓ Captured pose pair #{len(self.calibration_data)} "
               f"(reproj {reproj:.2f} px)")
+        print(f"  Joints (deg): {[round(j, 2) for j in joints_deg]}")
+        print(f"  EE via FK   : pos=({ee_pos[0]:.1f},{ee_pos[1]:.1f},{ee_pos[2]:.1f}) mm  "
+              f"RPY=({fk_rpy[0]:.1f},{fk_rpy[1]:.1f},{fk_rpy[2]:.1f})°")
+        if raw_pose is not None:
+            x, y, z, *_ = raw_pose
+            dx = ee_pos - np.array([x, y, z])
+            print(f"  Cross-check   : ctrl pos=({x:.1f},{y:.1f},{z:.1f}) mm  "
+                  f"|FK−ctrl|={np.linalg.norm(dx):.2f} mm")
         print("Cam to board transformation")
         for row in T_cam_board:
             print(f"{row[0]} {row[1]} {row[2]} {row[3]}")
 
         euler_cam_board = R.from_matrix(T_cam_board[:3, :3]).as_euler('zxy', degrees=True)
         print(f"  Board euler: ({euler_cam_board[0]:.1f}, {euler_cam_board[1]:.1f}, {euler_cam_board[2]:.1f}) deg")
-
-        euler_base_ee = R.from_matrix(T_base_ee[:3, :3]).as_euler('zxy', degrees=True)
-        print(f"  EE euler: ({euler_base_ee[0]:.1f}, {euler_base_ee[1]:.1f}, {euler_base_ee[2]:.1f}) deg")
-        print("Base to EE transformation")
-        for row in T_base_ee:
-            print(f"{row[0]} {row[1]} {row[2]} {row[3]}")
 
         return True
     

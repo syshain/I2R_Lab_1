@@ -130,17 +130,20 @@ def main():
             elif not success:
                 print("Board not detected - try again.")
             else:
-                T_base_ee, raw_pose = det.get_robot_end_effector_pose()
+                T_base_ee, joints_deg, raw_pose = det.get_robot_end_effector_pose()
                 if T_base_ee is None:
                     print("Failed to read robot pose")
                 else:
                     det.calibration_data.append({
-                        'T_base_ee': T_base_ee,
+                        'T_base_ee': T_base_ee,          # FK-derived
+                        'robot_joints': joints_deg,
                         'robot_pose_raw': raw_pose,
                         'T_cam_board': T_cam_board,
                         'timestamp': cv2.getTickCount(),
                     })
-                    print(f"✓ Captured validation pose #{len(det.calibration_data)}")
+                    ee_pos = T_base_ee[:3, 3]
+                    print(f"✓ Captured validation pose #{len(det.calibration_data)} "
+                          f"EE=({ee_pos[0]:.1f},{ee_pos[1]:.1f},{ee_pos[2]:.1f}) mm")
         elif key == ord('s'):
             if n < MIN_POSES:
                 print(f"Need at least {MIN_POSES} poses (have {n}).")

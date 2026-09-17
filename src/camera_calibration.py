@@ -209,7 +209,7 @@ if __name__ == "__main__":
     # Configuration - modify these to match your setup.
     CHESSBOARD_SIZE = (10, 7)  # (inner corners per row, inner corners per column)
     SQUARE_SIZE_MM = 15.0      # measure your printed chessboard square size in mm
-    IMAGE_PATTERN = "camera_calibration_images/calib_*.jpg"
+    IMAGE_PATTERN = "calib_*.jpg"
 
     print(f"Chessboard: {CHESSBOARD_SIZE[0]}x{CHESSBOARD_SIZE[1]} inner corners, "
           f"{SQUARE_SIZE_MM} mm squares, pattern '{IMAGE_PATTERN}'")

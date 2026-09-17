@@ -438,22 +438,34 @@ if __name__ == "__main__":
     )
 
     if T_ee_cam is not None:
-        # ---- Baseline comparison: same data, no RANSAC -------------------
+        # Build the inlier subset for RANSAC-specific reporting.
+        n_total = len(calibrator.calibration_data)
+        n_inliers = int(calibrator.inlier_mask.sum()) if calibrator.inlier_mask is not None else n_total
+        inlier_data = [d for i, d in enumerate(calibrator.calibration_data)
+                       if calibrator.inlier_mask[i]] if calibrator.inlier_mask is not None \
+                      else calibrator.calibration_data
+
+        # ---- Baseline comparison ------------------------------------------
+        # Baseline: all poses, no rejection.
+        # RANSAC:   inlier subset only (the whole point of RANSAC is to trim).
         print("\n" + "="*60)
-        print("BASELINE: Direct Calibration (all poses, no outlier rejection)")
+        print("BASELINE vs RANSAC COMPARISON")
         print("="*60)
         T_baseline, baseline_scores = calibrator.baseline_calibrate()
         if T_baseline is not None:
             baseline_consistency = calibrator.evaluate_consistency(
                 T_baseline, calibrator.calibration_data)
             ransac_consistency = calibrator.evaluate_consistency(
-                T_ee_cam, calibrator.calibration_data)
-            print(f"\n{'Method':<20} {'Consistency (mm)':>18}")
-            print("-"*40)
+                T_ee_cam, inlier_data)
+            print(f"\n  Baseline fitted on: ALL {n_total} poses")
+            print(f"  RANSAC fitted on:   {n_inliers}/{n_total} inlier poses "
+                  f"(threshold {RANSAC_INLIER_THRESHOLD_MM:g} mm)")
+            print(f"\n{'Method':<20} {'Poses':>7} {'Consistency (mm)':>18}")
+            print("-"*48)
             for name, score in sorted(baseline_scores.items(),
                                       key=lambda x: x[1]):
-                print(f"  {name:<18} {score:>16.2f}")
-            print(f"  {'RANSAC (this run)':<18} {ransac_consistency:>16.2f}")
+                print(f"  {name:<18} {n_total:>7} {score:>16.2f}")
+            print(f"  {'RANSAC (inliers)':<18} {n_inliers:>7} {ransac_consistency:>16.2f}")
             delta = baseline_consistency - ransac_consistency
             if delta > 0:
                 print(f"\n  RANSAC improved consistency by {delta:.2f} mm "
@@ -464,13 +476,9 @@ if __name__ == "__main__":
         print("="*60)
 
         print("\n" + "="*60)
-        print("STEP 3: Nonlinear Refinement")
+        print("STEP 3: Nonlinear Refinement (on inlier subset)")
         print("="*60)
-        # Refine on ALL poses (not just inliers) so the comparison against the
-        # baseline is fair: same data, same optimizer. RANSAC's advantage is in
-        # robust initialization (finding the right basin), not in discarding
-        # good data during the polish.
-        T_ee_cam_refined = calibrator.refine_calibration(use_inliers=False)
+        T_ee_cam_refined = calibrator.refine_calibration(use_inliers=True)
 
         # refine_calibration can return None (e.g. no usable initial guess).
         # Fall back to the raw RANSAC estimate so downstream steps always get
@@ -479,6 +487,11 @@ if __name__ == "__main__":
             print("\n⚠ Refinement returned no result; using the raw RANSAC "
                   "estimate for visualization and saving.")
             T_ee_cam_refined = T_ee_cam
+
+        # Report final consistency on the inlier subset.
+        final_consistency = calibrator.evaluate_consistency(
+            T_ee_cam_refined, inlier_data)
+        print(f"\n  Final RANSAC consistency (inliers only): {final_consistency:.2f} mm")
 
         print("\n" + "="*60)
         print("STEP 4: Visualization")

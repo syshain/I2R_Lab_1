@@ -44,7 +44,7 @@ def get_robot_end_effector_pose(arm):
         raw_pose    : controller's [x,y,z,roll,pitch,yaw] (mm,deg), kept only as
                       a cross-check against the FK result.
     """
-    code, angle_data = arm.get_angle()
+    code, angle_data = arm.get_servo_angle()[:6]
     if code != 0:
         print(f"Error getting angle: {code}")
         return None, None, None

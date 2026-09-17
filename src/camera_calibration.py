@@ -1,19 +1,24 @@
+"""Chessboard camera calibration.
+
+Detects chessboard corners across a set of captured images and estimates the
+intrinsic matrix and distortion coefficients. Reads images from ../data/ and
+writes camera_matrix.npy, dist_coeffs.npy, calibration_results.npz and
+calibration_parameters.txt back into ../data/.
+"""
+
 import numpy as np
 import cv2 as cv
 import glob
 import os
+from pathlib import Path
 
-def calibrate_camera(images_path='*.jpg', chessboard_size=(10,7), square_size_mm=25.0):
-    """
-    Calibrate camera using chessboard images.
-    
-    Parameters:
-    - images_path: pattern to match image files (default '*.jpg')
-    - chessboard_size: (inner corners per row, inner corners per column)
-    - square_size_mm: physical size of each chessboard square in mm
-    """
-    
-    # Termination criteria for sub-pixel refinement
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DATA_DIR = _SCRIPT_DIR.parent / 'data'
+
+
+def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_mm=25.0):
+    """Estimate intrinsics + distortion from chessboard images."""
+
     criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
     
     # Prepare object points (3D coordinates of chessboard corners in real world)
@@ -28,9 +33,9 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10,7), square_size_mm
     good_images = []
     bad_images = []
     
-    # Get list of images
-    images = glob.glob(images_path)
-    print(f"Found {len(images)} images")
+    # Get list of images (resolved against the data directory)
+    images = glob.glob(str(_DATA_DIR / images_path))
+    print(f"Found {len(images)} images in {_DATA_DIR}")
     
     if len(images) == 0:
         print("ERROR: No images found! Check your path and file pattern.")
@@ -97,33 +102,33 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10,7), square_size_mm
     img = cv.imread(good_images[0])
     h, w = img.shape[:2]
     
-    ret, camera_matrix, dist_coeffs, rvecs, tvecs = cv.calibrateCamera(
+    rms_reproj_error, camera_matrix, dist_coeffs, rvecs, tvecs = cv.calibrateCamera(
         objpoints, imgpoints, (w, h), None, None
     )
     
-    # Calculate reprojection error for each image
-    total_error = 0
+    # Per-image mean L2 reprojection error (secondary diagnostic)
+    per_image_errors = []
     for i in range(len(objpoints)):
-        imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i], 
+        imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i],
                                          camera_matrix, dist_coeffs)
-        error = cv.norm(imgpoints[i], imgpoints2, cv.NORM_L2) / len(imgpoints2)
-        total_error += error
-    
-    mean_error = total_error / len(objpoints)
+        err = np.linalg.norm(imgpoints[i] - imgpoints2.reshape(-1, 2), axis=1).mean()
+        per_image_errors.append(err)
+    mean_per_corner = np.mean(per_image_errors)
     
     # Display results
     print("\n" + "="*60)
     print("CALIBRATION RESULTS")
     print("="*60)
     print(f"Image size: {w} x {h} pixels")
-    print(f"Reprojection error (mean): {mean_error:.4f} pixels")
-    print(f"Calibration quality: ", end="")
+    print(f"Reprojection error (RMS): {rms_reproj_error:.4f} pixels")
+    print(f"Mean per-corner error:    {mean_per_corner:.4f} pixels (diagnostic)")
+    print("Calibration quality: ", end="")
     
-    if mean_error < 0.3:
+    if rms_reproj_error < 0.3:
         print("EXCELLENT ✓")
-    elif mean_error < 0.5:
+    elif rms_reproj_error < 0.5:
         print("GOOD ✓")
-    elif mean_error < 1.0:
+    elif rms_reproj_error < 1.0:
         print("ACCEPTABLE")
     else:
         print("POOR - Consider recapturing images")
@@ -137,74 +142,52 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10,7), square_size_mm
     print("\nDistortion Coefficients (k1, k2, p1, p2, k3):")
     print(dist_coeffs.flatten())
     
-    # Save results
-    output_files = {
-        'camera_matrix.npy': camera_matrix,
-        'dist_coeffs.npy': dist_coeffs,
-        'calibration_results.npz': {
-            'camera_matrix': camera_matrix,
-            'dist_coeffs': dist_coeffs,
-            'reprojection_error': mean_error,
-            'image_size': (w, h),
-            'chessboard_size': chessboard_size,
-            'square_size_mm': square_size_mm
-        }
-    }
-    
     print("\n" + "="*60)
     print("SAVING RESULTS")
     print("="*60)
     
     # Save as .npy files (easy to load in OpenCV)
-    np.save('camera_matrix.npy', camera_matrix)
-    np.save('dist_coeffs.npy', dist_coeffs)
+    np.save(str(_DATA_DIR / 'camera_matrix.npy'), camera_matrix)
+    np.save(str(_DATA_DIR / 'dist_coeffs.npy'), dist_coeffs)
     print("✓ Saved: camera_matrix.npy")
     print("✓ Saved: dist_coeffs.npy")
-    
+
     # Save as .npz (contains all info)
-    np.savez('calibration_results.npz',
+    np.savez(str(_DATA_DIR / 'calibration_results.npz'),
              camera_matrix=camera_matrix,
              dist_coeffs=dist_coeffs,
-             reprojection_error=mean_error,
+             reprojection_error_rms=rms_reproj_error,
+             reprojection_error_mean=mean_per_corner,
              image_size=(w, h),
              chessboard_size=chessboard_size,
              square_size_mm=square_size_mm)
     print("✓ Saved: calibration_results.npz")
-    
+
     # Also save as text file for reference
-    with open('calibration_parameters.txt', 'w') as f:
+    with open(str(_DATA_DIR / 'calibration_parameters.txt'), 'w') as f:
         f.write("CAMERA CALIBRATION PARAMETERS\n")
         f.write("="*40 + "\n\n")
         f.write(f"Image size: {w} x {h}\n")
-        f.write(f"Reprojection error: {mean_error:.4f} pixels\n\n")
+        f.write(f"Reprojection error (RMS): {rms_reproj_error:.4f} pixels\n")
+        f.write(f"Mean per-corner error:    {mean_per_corner:.4f} pixels\n\n")
         f.write("Camera Matrix:\n")
         f.write(str(camera_matrix) + "\n\n")
         f.write("Distortion Coefficients:\n")
         f.write(str(dist_coeffs.flatten()) + "\n")
     print("✓ Saved: calibration_parameters.txt")
     
-    return camera_matrix, dist_coeffs, mean_error
-# ============================================================================
-# MAIN SCRIPT
-# ============================================================================
+    return camera_matrix, dist_coeffs, rms_reproj_error
+
 
 if __name__ == "__main__":
-    print("\n" + "="*60)
-    print("CAMERA CALIBRATION TOOL")
-    print("="*60)
-    print("\nThis script will calibrate your camera using chessboard images.")
-    
-    # Configuration - MODIFY THESE TO MATCH YOUR SETUP!
+    # Configuration - modify these to match your setup.
     CHESSBOARD_SIZE = (10, 7)  # (inner corners per row, inner corners per column)
-    SQUARE_SIZE_MM = 25.0     # Measure your printed chessboard square size in mm
-    IMAGE_PATTERN = "*.jpg"   # Pattern to match your calibration images
-    
-    print(f"\nUsing configuration:")
-    print(f"  - Chessboard pattern: {CHESSBOARD_SIZE[0]}x{CHESSBOARD_SIZE[1]} inner corners")
-    print(f"  - Square size: {SQUARE_SIZE_MM} mm")
-    print(f"  - Image pattern: {IMAGE_PATTERN}")
-    
-    # Run calibration
+    SQUARE_SIZE_MM = 25.0      # measure your printed chessboard square size in mm
+    IMAGE_PATTERN = "calib_*.jpg"
+
+    print(f"Chessboard: {CHESSBOARD_SIZE[0]}x{CHESSBOARD_SIZE[1]} inner corners, "
+          f"{SQUARE_SIZE_MM} mm squares, pattern '{IMAGE_PATTERN}'")
+
     result = calibrate_camera(IMAGE_PATTERN, CHESSBOARD_SIZE, SQUARE_SIZE_MM)
     
     if result is not None:

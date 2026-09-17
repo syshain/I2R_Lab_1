@@ -1,16 +1,22 @@
+"""Hand-eye calibration by brute-force search over Euler orders + solvers.
+
+Loads captured pairs from ../data/calibration_data.npy, tries every Euler-angle
+convention against several OpenCV hand-eye methods, scores each by reconstructed
+board-position consistency, and saves the best T_ee_cam to ../data/.
+"""
+
 import numpy as np
 import cv2
+from pathlib import Path
 from scipy.spatial.transform import Rotation as R
 
-# ============================================================
-# HELPERS
-# ============================================================
-def robot_pose_to_matrix(raw_pose, euler_order='xyz'):
-    """
-    raw_pose = [x, y, z, roll, pitch, yaw]
-    """
-    x, y, z, roll, pitch, yaw = raw_pose
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DATA_DIR = _SCRIPT_DIR.parent / 'data'
 
+
+def robot_pose_to_matrix(raw_pose, euler_order='xyz'):
+    """raw_pose = [x, y, z, roll, pitch, yaw]; returns a 4x4 transform."""
+    x, y, z, roll, pitch, yaw = raw_pose
     Rmat = R.from_euler(euler_order, [roll, pitch, yaw], degrees=True).as_matrix()
 
     T = np.eye(4, dtype=np.float64)
@@ -20,20 +26,11 @@ def robot_pose_to_matrix(raw_pose, euler_order='xyz'):
 
 
 def evaluate_consistency(T_ee_cam, data, euler_order):
-    """
-    Rebuild T_base_ee from raw robot poses using the tested Euler order,
-    then compute board positions in robot base frame.
-
-    T_base_board = T_base_ee @ T_ee_cam @ T_cam_board
-    """
+    """Spread of reconstructed board positions (T_base_board) across poses."""
     positions = []
-
     for d in data:
-        raw_pose = d['robot_pose_raw']
-        T_base_ee = robot_pose_to_matrix(raw_pose, euler_order=euler_order)
-        T_cam_board = d['T_cam_board']
-
-        T_base_board = T_base_ee @ T_ee_cam @ T_cam_board
+        T_base_ee = robot_pose_to_matrix(d['robot_pose_raw'], euler_order=euler_order)
+        T_base_board = T_base_ee @ T_ee_cam @ d['T_cam_board']
         positions.append(T_base_board[:3, 3])
 
     positions = np.array(positions)
@@ -46,9 +43,9 @@ def evaluate_consistency(T_ee_cam, data, euler_order):
 
 
 def save_result(T_ee_cam, filename_npy='T_ee_cam.npy', filename_txt='T_ee_cam.txt'):
-    np.save(filename_npy, T_ee_cam)
+    np.save(str(_DATA_DIR / filename_npy), T_ee_cam)
 
-    with open(filename_txt, 'w') as f:
+    with open(str(_DATA_DIR / filename_txt), 'w') as f:
         f.write("Hand-Eye Calibration Result: T_ee_cam\n")
         f.write("=" * 60 + "\n\n")
         f.write("4x4 Transformation Matrix:\n")
@@ -67,12 +64,8 @@ def save_result(T_ee_cam, filename_npy='T_ee_cam.npy', filename_txt='T_ee_cam.tx
         f.write(f"Yaw:   {euler[2]:.6f}\n")
 
 
-# ============================================================
-# MAIN CALIBRATION
-# ============================================================
 if __name__ == "__main__":
-    # Load captured data
-    data = np.load("calibration_data.npy", allow_pickle=True).tolist()
+    data = np.load(str(_DATA_DIR / "calibration_data.npy"), allow_pickle=True).tolist()
     print(f"Loaded {len(data)} poses")
 
     # Keep only samples that have raw robot pose + T_cam_board
@@ -111,7 +104,6 @@ if __name__ == "__main__":
     print("=" * 90)
 
     for euler_order in euler_orders:
-        # Rebuild robot transforms using this Euler interpretation
         R_gripper2base = []
         t_gripper2base = []
 
@@ -169,9 +161,6 @@ if __name__ == "__main__":
         print("\nCalibration failed.")
         raise SystemExit
 
-    # ============================================================
-    # REPORT BEST RESULT
-    # ============================================================
     T_ee_cam = best['T_ee_cam']
     euler_xyz = R.from_matrix(T_ee_cam[:3, :3]).as_euler('xyz', degrees=True)
 
@@ -188,7 +177,6 @@ if __name__ == "__main__":
     print(f"\nTranslation [mm]: {T_ee_cam[:3, 3]}")
     print(f"Euler xyz [deg]: {euler_xyz}")
 
-    # Quality message
     if np.max(best['std_pos']) < 5:
         print("\n✓ Calibration quality: EXCELLENT")
     elif np.max(best['std_pos']) < 10:
@@ -198,8 +186,5 @@ if __name__ == "__main__":
     else:
         print("\n✗ Calibration quality: POOR")
 
-    # Save best result
     save_result(T_ee_cam)
-    print("\nSaved:")
-    print("  T_ee_cam.npy")
-    print("  T_ee_cam.txt")
+    print("\nSaved: T_ee_cam.npy, T_ee_cam.txt (in data/)")

@@ -1,14 +1,22 @@
 import os
+import sys
 import numpy as np
 import cv2
 import cv2.aruco as aruco
 import json
+from pathlib import Path
 from scipy.spatial.transform import Rotation as R
 from xarm.wrapper import XArmAPI
 
-arm = XArmAPI('192.168.1.153')
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DATA_DIR = _SCRIPT_DIR.parent / 'data'
 
-def get_robot_pose_raw():
+# Shared hardware config lives with the Lab 1 src scripts.
+sys.path.insert(0, str(_SCRIPT_DIR.parent / 'src'))
+from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
+
+
+def get_robot_pose_raw(arm):
     """Returns raw robot pose: [x, y, z, roll, pitch, yaw]"""
     code, pose = arm.get_position()
     if code != 0:
@@ -52,9 +60,14 @@ class Aruco3DBoardDetector:
         5: 0,
     }
 
-    def __init__(self, camera_index=1, config_path='board_config.json'):
-        self.camera_matrix = np.load('camera_matrix.npy')
-        self.dist_coeffs   = np.load('dist_coeffs.npy')
+    def __init__(self, camera_index=None, config_path=None):
+        if camera_index is None:
+            camera_index = CAMERA_INDEX
+        if config_path is None:
+            config_path = str(_DATA_DIR / 'board_config.json')
+
+        self.camera_matrix = np.load(str(_DATA_DIR / 'camera_matrix.npy'))
+        self.dist_coeffs   = np.load(str(_DATA_DIR / 'dist_coeffs.npy'))
 
         self.aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
         params = aruco.DetectorParameters()
@@ -75,7 +88,7 @@ class Aruco3DBoardDetector:
 
         board   = cfg['toolList'][0]
         ids     = board['marker_ids']
-        corners = board['marker_corners_m']
+        corners = board['marker_corners_mm']
 
         # Scale + winding correction
         scaled = {}
@@ -224,7 +237,7 @@ def draw_frame_axes_safe(img, camera_matrix, dist_coeffs,
 # ============================================================
 # MAIN
 # ============================================================
-if __name__ == "__main__":
+def main():
     print("3D ArUco Board Pose Capture")
     print("Using 3D polyhedron board (board_config.json)")
     print("Auto-save enabled after every capture")
@@ -232,19 +245,21 @@ if __name__ == "__main__":
     print("Press 's' to save captured data")
     print("Press 'q' to quit\n")
 
-    detector = Aruco3DBoardDetector(
-        camera_index=1,
-        config_path='board_config.json'
-    )
+    arm = XArmAPI(ROBOT_IP)
+
+    detector = Aruco3DBoardDetector()
 
     if not detector.cap.isOpened():
         print(f"Failed to open camera {detector.camera_index}")
         raise SystemExit
 
-    detector.cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1920)
-    detector.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    detector.cap.set(cv2.CAP_PROP_FRAME_WIDTH,  FRAME_WIDTH)
+    detector.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
     np.set_printoptions(precision=6, suppress=True)
+
+    data = []
+    pose_id = 0
 
     while True:
         ret, frame = detector.cap.read()
@@ -334,7 +349,7 @@ if __name__ == "__main__":
                       f"({reproj_error:.2f} px)")
                 continue
 
-            raw_pose = get_robot_pose_raw()
+            raw_pose = get_robot_pose_raw(arm)
             if raw_pose is None:
                 print("Could not read robot pose. Check connection.")
                 continue
@@ -373,12 +388,15 @@ if __name__ == "__main__":
 
         elif key == ord('s'):
             if len(data) > 0:
-                np.save('calibration_data.npy', np.array(data, dtype=object))
-                print(f"Saved {len(data)} calibration poses")
+                np.save(str(_DATA_DIR / 'calibration_data.npy'),
+                        np.array(data, dtype=object))
+                print(f"Saved {len(data)} calibration poses to {_DATA_DIR}")
             else:
                 print("No calibration data to save. Press 'c' during run to capture poses")
 
-
-
     detector.cap.release()
     cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()

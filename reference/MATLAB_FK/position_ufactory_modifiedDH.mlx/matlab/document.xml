@@ -62,9 +62,9 @@ fprintf("End-effector position (mm):\n");
 disp(p*1000);
 
 %% Local DH function]]></w:t></w:r></w:p><w:p><w:pPr><w:sectPr/></w:pPr></w:p><w:p><w:pPr><w:pStyle w:val="code"/></w:pPr><w:r><w:t><![CDATA[function T = dh(theta_deg, d_mm, alpha_deg, a_mm)
-
-T = [cosd(theta_deg), -sind(theta_deg)*cosd(alpha_deg),  sind(theta_deg)*sind(alpha_deg), a_mm/1000*cosd(theta_deg);
-     sind(theta_deg),  cosd(theta_deg)*cosd(alpha_deg), -cosd(theta_deg)*sind(alpha_deg), a_mm/1000*sind(theta_deg);
-     0,                sind(alpha_deg),                 cosd(alpha_deg),                 d_mm/1000;
-     0,                0,                                0,                                1];
+% Modified (Craig) D-H transform; angles in degrees, lengths in mm.
+T = [cosd(theta_deg),  -sind(theta_deg),                                          0,                     a_mm/1000;
+     sind(theta_deg)*cosd(alpha_deg), cosd(theta_deg)*cosd(alpha_deg), -sind(alpha_deg), -sind(alpha_deg)*(d_mm/1000);
+     sind(theta_deg)*sind(alpha_deg), cosd(theta_deg)*sind(alpha_deg),  cosd(alpha_deg),  cosd(alpha_deg)*(d_mm/1000);
+     0,                            0,                             0,                       1];
 end]]></w:t></w:r></w:p></w:body></w:document>

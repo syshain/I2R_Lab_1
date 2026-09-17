@@ -1,0 +1,63 @@
+"""Capture paired robot + ArUco-board poses for hand-eye calibration.
+
+Runs a live detection loop over the wrist-mounted camera; when the user hits
+'c' it records the current T_base_ee alongside the detected T_cam_board, and
+'s' saves the collected pairs into ../data/calibration_data.npy.
+
+The board geometry is read from ../data/board_config.json (a 3-D polyhedron of
+markers), matching Labs 2 and 3. The corner coordinates are defined at 30 mm
+marker scale in the config and scaled up by 4/3 to the physical 40 mm markers.
+"""
+import json
+
+import numpy as np
+import cv2
+import cv2.aruco as aruco
+from pathlib import Path
+from scipy.spatial.transform import Rotation as R
+from xarm.wrapper import XArmAPI
+from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
+
+_SCRIPT_DIR = Path(__file__).resolve().parent
+_DATA_DIR = _SCRIPT_DIR.parent / 'data'
+
+# Config stores marker corners at 30 mm scale; physical markers are 40 mm.
+_BOARD_SCALE = 4.0 / 3.0
+# Per-marker corner winding correction (matches Labs 2/3 detector).
+_CORNER_ROLL = {0: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+
+
+def get_robot_end_effector_pose(arm):
+    raise NotImplementedError('TODO: get_robot_end_effector_pose')
+
+
+class ArucoBoardDetector:
+    """3-D ArUco polyhedron detector driven by board_config.json."""
+
+    def __init__(self, camera_index=None):
+        raise NotImplementedError('TODO: __init__')
+
+    def _build_board_model(self):
+        raise NotImplementedError('TODO: _build_board_model')
+
+    def start_camera(self):
+        raise NotImplementedError('TODO: start_camera')
+
+    def detect_board(self, frame):
+        raise NotImplementedError('TODO: detect_board')
+
+    def draw_detection(self, frame, rvec, tvec, ids, corners, success):
+        raise NotImplementedError('TODO: draw_detection')
+
+    def get_robot_end_effector_pose(self):
+        raise NotImplementedError('TODO: get_robot_end_effector_pose')
+
+    def capture_calibration_pose(self):
+        raise NotImplementedError('TODO: capture_calibration_pose')
+
+    def run(self, mode='detect'):
+        raise NotImplementedError('TODO: run')
+
+
+if __name__ == '__main__':
+    pass

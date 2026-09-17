@@ -3,7 +3,7 @@
 Loads captured (T_base_ee, T_cam_board) pairs from ../data/calibration_data.npy,
 filters inconsistent poses, solves for T_ee_cam across several OpenCV methods,
 refines by nonlinear least squares, plots the result, and saves
-../data/T_ee_cam.npy / .txt.
+../data/T_ee_cam_ransac.npy / .txt.
 """
 
 import os
@@ -381,12 +381,13 @@ class RobustHandEyeCalibrator:
             else:
                 print("\n✗ Calibration quality: POOR - Consider re-collecting data")
 
-    def save_results(self, T_ee_cam, filename='T_ee_cam.npy'):
+    def save_results(self, T_ee_cam, filename='T_ee_cam_ransac.npy'):
         """Save T_ee_cam as .npy and a human-readable .txt into ../data/."""
+        txt_name = filename.replace('.npy', '.txt')
         np.save(str(_DATA_DIR / filename), T_ee_cam)
 
-        with open(str(_DATA_DIR / 'T_ee_cam.txt'), 'w') as f:
-            f.write("Hand-Eye Calibration Result: T_ee_cam (End Effector to Camera)\n")
+        with open(str(_DATA_DIR / txt_name), 'w') as f:
+            f.write("Hand-Eye Calibration Result: T_ee_cam (RANSAC)\n")
             f.write("="*60 + "\n\n")
             f.write("4x4 Transformation Matrix:\n")
             for row in T_ee_cam:
@@ -397,14 +398,14 @@ class RobustHandEyeCalibrator:
             f.write(f"  Y: {T_ee_cam[1,3]:.2f}\n")
             f.write(f"  Z: {T_ee_cam[2,3]:.2f}\n")
 
-            euler = R.from_matrix(T_ee_cam[:3, :3]).as_euler('xyz', degrees=True)
+            euler = R.from_matrix(T_ee_cam[:3,:3]).as_euler('xyz', degrees=True)
             f.write("\nRotation (degrees):\n")
             f.write(f"  Roll:  {euler[0]:.2f}\n")
             f.write(f"  Pitch: {euler[1]:.2f}\n")
             f.write(f"  Yaw:   {euler[2]:.2f}\n")
 
         print(f"\n✓ Saved: {filename}")
-        print("✓ Saved: T_ee_cam.txt")
+        print(f"✓ Saved: {txt_name}")
 
 
 # ============================================================
@@ -489,7 +490,7 @@ if __name__ == "__main__":
         print("CALIBRATION COMPLETE!")
         print("="*60)
         print("\nTo use this calibration in your robot code:")
-        print("  T_ee_cam = np.load('<data>/T_ee_cam.npy')")
+        print("  T_ee_cam = np.load('<data>/T_ee_cam_ransac.npy')")
         print("  T_base_board = T_base_ee @ T_ee_cam @ T_cam_board")
     else:
         print("\n✗ Calibration failed. Please check your data.")

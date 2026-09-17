@@ -37,10 +37,11 @@ The stages run in order; each reads the previous stage's output from `data/` and
 | `image_capture.py` | Grabs chessboard frames from the USB camera on demand. | `calib_NNN.jpg` |
 | `camera_calibration.py` | Intrinsics + distortion from the chessboard images (`findChessboardCorners` + `calibrateCamera`). | `camera_matrix.npy`, `dist_coeffs.npy`, `calibration_results.npz`, `calibration_parameters.txt` |
 | `transformation_calibration.py` | Live ArUco-board detection loop; records `(T_base_ee, T_cam_board)` pose pairs from the arm + wrist camera. | `calibration_data.npy` |
-| `ransac_calibration.py` | Robust hand-eye solve: pairwise-consistency outlier rejection, multi-method `calibrateHandEye`, nonlinear least-squares refinement, plotting. | `T_ee_cam.npy`, `T_ee_cam.txt` |
-| `get_tranform_3D.py` | Brute-force alternative: sweeps Euler-angle conventions × OpenCV hand-eye methods, scores by board-position consistency, keeps the best. | `T_ee_cam.npy`, `T_ee_cam.txt` |
+| `ransac_calibration.py` | Robust hand-eye solve: RANSAC sampling, outlier rejection, multi-method `calibrateHandEye`, baseline comparison (all poses, no rejection), nonlinear least-squares refinement, plotting. | `T_ee_cam_ransac.npy`, `T_ee_cam_ransac.txt` |
+| `get_tranform_3D.py` | Direct hand-eye solve: tests all 5 OpenCV methods on the full dataset, scores by board-position consistency, keeps the best. | `T_ee_cam_normal.npy`, `T_ee_cam_normal.txt` |
+| `validate_calibration.py` | Live keygated validation at a relocated board; loads both T_ee_cam results, reconstructs board position with each, prints side-by-side comparison. | `validation_data.npy` |
 
-`ransac_calibration.py` and `get_tranform_3D.py` are two independent routes to the same target (`T_ee_cam`) and both consume `calibration_data.npy`; a student compares their agreement as a sanity check.
+`ransac_calibration.py` and `get_tranform_3D.py` are two independent routes to the same target (`T_ee_cam`) and both consume `calibration_data.npy`. `validate_calibration.py` evaluates both on the same fresh set of poses so the comparison is apples-to-apples.
 
 ## Units
 

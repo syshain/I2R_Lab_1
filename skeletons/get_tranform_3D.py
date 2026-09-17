@@ -44,7 +44,7 @@ def evaluate_consistency(T_ee_cam, data):
     raise NotImplementedError('TODO: evaluate_consistency')
 
 
-def save_result(T_ee_cam, filename_npy='T_ee_cam.npy', filename_txt='T_ee_cam.txt'):
+def save_result(T_ee_cam, filename_npy='T_ee_cam_normal.npy', filename_txt='T_ee_cam_normal.txt'):
     raise NotImplementedError('TODO: save_result')
 
 

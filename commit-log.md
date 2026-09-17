@@ -23,3 +23,9 @@ Initial commit of working lab 1 code
 - Lab 1 code uses the same unified modularization as other labs
 - All tuneable constants including board size etc put now in lab_config.py
 
+## v4.1 - Minor fixes
+### 17 Sep 2026
+### Validation script now prints validation using both calibrated T_ee_cam matrices
+- get_transform_3D.py saves the matrix as T_ee_cam_normal.npy
+- ransac_calibration.py saves as _ransac.npy
+- validation script uses both and compares

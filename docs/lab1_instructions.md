@@ -205,9 +205,24 @@ This script:
    - The 4×4 transformation matrix **T**_ee_cam
    - Translation and Euler angles
 
-3. Results are saved as `data/T_ee_cam.npy` and `data/T_ee_cam.txt`.
+3. Results are saved as `data/T_ee_cam_normal.npy` and `data/T_ee_cam_normal.txt`.
 
-### Task D3 — Validate the Calibration
+### Task D3 — Robust RANSAC Calibration
+
+Run `skeletons/ransac_calibration.py` for a more robust pipeline that samples
+pose subsets (RANSAC), rejects outliers, and refines by nonlinear least squares.
+It also runs a baseline comparison (all four closed-form methods on the full
+dataset, no outlier rejection) so you can see whether RANSAC actually helped.
+
+```bash
+python skeletons/ransac_calibration.py
+```
+
+Results are saved as `data/T_ee_cam_ransac.npy` and `data/T_ee_cam_ransac.txt`.
+Record the best consistency (mm) and note whether RANSAC improved over the
+best direct method.
+
+### Task D4 — Validate Both Calibrations
 
 Run `skeletons/validate_calibration.py`. First move the ArUco board to a
 different location on the table and hold it still, then run the script and move
@@ -217,20 +232,13 @@ the arm through 8–10 varied poses, pressing **'c'** at each and **'s'** to fin
 python skeletons/validate_calibration.py
 ```
 
-For every capture it reconstructs where the board sits in the robot base frame
-and reports how tightly those points cluster. Because you are validating at a
-fresh board location, any systematic error in T_ee_cam shows up as scatter
-rather than cancelling out. Record the **RMS scatter** it prints — this is your
-headline number for how well the hand-eye transform generalises. A large value
-means the board moved during capture, some frames were mis-detected, or
-T_ee_cam itself is inaccurate.
-
-### Task D4 — Robust RANSAC Calibration (Optional Extension)
-
-Run `skeletons/ransac_calibration.py` for a more robust pipeline that samples
-pose subsets (RANSAC), rejects outliers, and refines by nonlinear least squares.
-Compare its final consistency metric with the result from Task D2. Which
-approach gave lower scatter? Why might one be preferable?
+The script loads both `T_ee_cam_normal.npy` and `T_ee_cam_ransac.npy`, evaluates
+each on the same set of validation poses, and prints a side-by-side comparison
+table (max deviation, RMS scatter, per-axis std). Because you are validating at
+a fresh board location, any systematic error in T_ee_cam shows up as scatter
+rather than cancelling out. Record the **RMS scatter** for both calibrations
+and note which one generalised better. A large value means the board moved
+during capture, some frames were mis-detected, or T_ee_cam itself is inaccurate.
 
 ---
 
@@ -252,11 +260,14 @@ Record and be ready to enter:
 3. **Part C** — The reprojection error (px), the full 3×3 camera matrix, and
    the five distortion coefficients exactly as printed by
    `skeletons/camera_calibration.py`.
-4. **Part D** — The best hand-eye method and Euler convention chosen by
-   `skeletons/get_tranform_3D.py`, the resulting T_ee_cam matrix (all 16 entries),
-   and the mean standard deviation of reconstructed board position in mm.
-5. **Validation** — Run `skeletons/validate_calibration.py` and record the RMS
-   scatter of the reconstructed board position across all captures.
+4. **Part D** — The best hand-eye method chosen by `skeletons/get_tranform_3D.py`,
+   the resulting T_ee_cam matrix (all 16 entries), and the mean standard
+   deviation of reconstructed board position in mm. Also record the RANSAC
+   result from Task D3: its consistency (mm) and whether it improved over the
+   best direct method.
+5. **Validation** — From `skeletons/validate_calibration.py`: the RMS scatter
+   for both the Normal and RANSAC calibrations, and which one generalised
+   better at the relocated board position.
 
 ---
 

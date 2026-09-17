@@ -3,7 +3,7 @@
 Loads captured (T_base_ee, T_cam_board) pairs from ../data/calibration_data.npy,
 filters inconsistent poses, solves for T_ee_cam across several OpenCV methods,
 refines by nonlinear least squares, plots the result, and saves
-../data/T_ee_cam.npy / .txt.
+../data/T_ee_cam_ransac.npy / .txt.
 """
 import numpy as np
 import cv2
@@ -63,7 +63,7 @@ class RobustHandEyeCalibrator:
     def visualize_results(self, T_ee_cam):
         raise NotImplementedError('TODO: visualize_results')
 
-    def save_results(self, T_ee_cam, filename='T_ee_cam.npy'):
+    def save_results(self, T_ee_cam, filename='T_ee_cam_ransac.npy'):
         raise NotImplementedError('TODO: save_results')
 if __name__ == '__main__':
     pass

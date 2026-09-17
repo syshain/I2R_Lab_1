@@ -76,11 +76,11 @@ def evaluate_consistency(T_ee_cam, data):
             'rms': rms_norm, 'max_dev': max_dev}
 
 
-def save_result(T_ee_cam, filename_npy='T_ee_cam.npy', filename_txt='T_ee_cam.txt'):
+def save_result(T_ee_cam, filename_npy='T_ee_cam_normal.npy', filename_txt='T_ee_cam_normal.txt'):
     np.save(str(_DATA_DIR / filename_npy), T_ee_cam)
 
     with open(str(_DATA_DIR / filename_txt), 'w') as f:
-        f.write("Hand-Eye Calibration Result: T_ee_cam\n")
+        f.write("Hand-Eye Calibration Result: T_ee_cam (Normal / Direct)\n")
         f.write("=" * 60 + "\n\n")
         f.write("4x4 Transformation Matrix:\n")
         for row in T_ee_cam:
@@ -210,4 +210,4 @@ if __name__ == "__main__":
         print("\n✗ Calibration quality: POOR")
 
     save_result(T_ee_cam)
-    print("\nSaved: T_ee_cam.npy, T_ee_cam.txt (in data/)")
+    print("\nSaved: T_ee_cam_normal.npy, T_ee_cam_normal.txt (in data/)")

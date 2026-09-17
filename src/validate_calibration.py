@@ -1,8 +1,11 @@
-"""Validate a hand-eye calibration with a RELOCATED board (live, keygated).
+"""Validate hand-eye calibrations with a RELOCATED board (live, keygated).
 
 Workflow:
-  1. Complete the normal calibration first (transformation_calibration.py +
-     get_tranform_3D.py / ransac_calibration.py) so T_ee_cam.npy exists.
+  1. Complete BOTH calibrations first:
+       - Normal:  transformation_calibration.py + get_tranform_3D.py
+                  → writes data/T_ee_cam_normal.npy
+       - RANSAC:  ransac_calibration.py
+                  → writes data/T_ee_cam_ransac.npy
   2. Physically MOVE the ArUco board to a different spot on the table and hold
      it stationary there.
   3. Run this script. Move the arm through 8-10 different poses while keeping
@@ -17,7 +20,8 @@ For every captured pose we reconstruct where the board sits in the base frame:
     T_base_board = T_base_ee @ T_ee_cam @ T_cam_board
 Because the board is physically fixed, a correct calibration makes all these
 reconstructions land on essentially one point. The RMS spread of those points
-is the validation metric.
+is the validation metric. Both calibrations are evaluated on the SAME set of
+validation poses so the comparison is apples-to-apples.
 
 Requires the robot connected and the wrist camera open. Saves the collected
 pairs to ../data/validation_data.npy.
@@ -77,22 +81,33 @@ def report(name, positions):
     return max_dev
 
 
-def main():
-    t_path = str(_DATA_DIR / 'T_ee_cam.npy')
-    if not Path(t_path).exists():
-        raise FileNotFoundError(
-            f"No {t_path}. Run the calibration pipeline first so T_ee_cam.npy "
-            f"is written before validating."
-        )
-    T_ee_cam = np.load(t_path)
+def _load_transform(path_str, label):
+    """Load a T_ee_cam .npy file, returning None with a warning if absent."""
+    p = Path(path_str)
+    if not p.exists():
+        print(f"⚠ {label}: {p.name} not found — skipping. "
+              f"Run the corresponding calibration first.")
+        return None
+    T = np.load(p)
+    euler = R.from_matrix(T[:3, :3]).as_euler('xyz', degrees=True)
+    print(f"  {label}: trans=({T[0,3]:7.2f}, {T[1,3]:7.2f}, {T[2,3]:7.2f}) mm  "
+          f"rot=({euler[0]:6.2f}, {euler[1]:6.2f}, {euler[2]:6.2f}) deg")
+    return T
 
-    euler = R.from_matrix(T_ee_cam[:3, :3]).as_euler('xyz', degrees=True)
-    print("=" * 50)
-    print("HAND-EYE CALIBRATION VALIDATION (relocated board)")
-    print("=" * 50)
-    print(f"T_ee_cam translation (mm): {T_ee_cam[:3, 3]}")
-    print(f"T_ee_cam rotation (deg)  : roll={euler[0]:.2f} "
-          f"pitch={euler[1]:.2f} yaw={euler[2]:.2f}")
+
+def main():
+    # Load whichever calibration results are available.
+    T_normal = _load_transform(str(_DATA_DIR / 'T_ee_cam_normal.npy'),
+                               "Normal (direct)")
+    T_ransac = _load_transform(str(_DATA_DIR / 'T_ee_cam_ransac.npy'),
+                               "RANSAC")
+
+    if T_normal is None and T_ransac is None:
+        raise FileNotFoundError(
+            "Neither T_ee_cam_normal.npy nor T_ee_cam_ransac.npy found in data/. "
+            "Run get_tranform_3D.py and/or ransac_calibration.py first."
+        )
+
     print("\nMove the board to a NEW location and keep it STILL.")
     print(f"Then move the arm through {MIN_POSES}-{MAX_POSES} varied poses.")
 
@@ -165,14 +180,45 @@ def main():
     np.save(str(_DATA_DIR / 'validation_data.npy'), pairs)
     print(f"✓ Saved {len(pairs)} validation poses -> data/validation_data.npy")
 
-    positions = reconstruct_board_positions(T_ee_cam, pairs)
-    report("Reconstructed board position across validation captures", positions)
+    # Evaluate each available calibration on the SAME validation poses.
+    results = {}
+    if T_normal is not None:
+        pos_n = reconstruct_board_positions(T_normal, pairs)
+        results['Normal (direct)'] = (pos_n, report(
+            "NORMAL CALIBRATION — reconstructed board position", pos_n))
+    if T_ransac is not None:
+        pos_r = reconstruct_board_positions(T_ransac, pairs)
+        results['RANSAC'] = (pos_r, report(
+            "RANSAC CALIBRATION — reconstructed board position", pos_r))
 
-    print("\nPer-axis spread (mm):")
-    for axis, label in enumerate(['X', 'Y', 'Z']):
-        vals = positions[:, axis]
-        print(f"  {label}: min={vals.min():8.2f}  max={vals.max():8.2f}  "
-              f"range={np.ptp(vals):7.2f}")
+    # Side-by-side comparison table.
+    if len(results) == 2:
+        (pos_n, dev_n), (pos_r, dev_r) = list(results.values())
+        rms_n = float(np.sqrt(np.mean(np.sum((pos_n - pos_n.mean(axis=0))**2, axis=1))))
+        rms_r = float(np.sqrt(np.mean(np.sum((pos_r - pos_r.mean(axis=0))**2, axis=1))))
+        print("\n" + "=" * 60)
+        print("SIDE-BY-SIDE COMPARISON (same validation poses)")
+        print("=" * 60)
+        print(f"{'Metric':<25} {'Normal':>12} {'RANSAC':>12}")
+        print("-" * 50)
+        print(f"{'Max deviation (mm)':<25} {dev_n:>12.2f} {dev_r:>12.2f}")
+        print(f"{'RMS scatter (mm)':<25} {rms_n:>12.2f} {rms_r:>12.2f}")
+        print(f"{'Std X (mm)':<25} {np.std(pos_n,axis=0)[0]:>12.2f} "
+              f"{np.std(pos_r,axis=0)[0]:>12.2f}")
+        print(f"{'Std Y (mm)':<25} {np.std(pos_n,axis=0)[1]:>12.2f} "
+              f"{np.std(pos_r,axis=0)[1]:>12.2f}")
+        print(f"{'Std Z (mm)':<25} {np.std(pos_n,axis=0)[2]:>12.2f} "
+              f"{np.std(pos_r,axis=0)[2]:>12.2f}")
+        winner = 'RANSAC' if dev_r < dev_n else ('Normal' if dev_n < dev_r else 'Tie')
+        diff = abs(dev_n - dev_r)
+        print(f"\n  → {winner} is tighter by {diff:.2f} mm (max-deviation metric).")
+    elif len(results) == 1:
+        name, (pos, _) = list(results.items())[0]
+        print(f"\nPer-axis spread for {name} (mm):")
+        for axis, label in enumerate(['X', 'Y', 'Z']):
+            vals = pos[:, axis]
+            print(f"  {label}: min={vals.min():8.2f}  max={vals.max():8.2f}  "
+                  f"range={np.ptp(vals):7.2f}")
 
     print("\nTip: large spread usually means the board moved during capture,")
     print("some frames were mis-detected, or T_ee_cam itself is inaccurate.")

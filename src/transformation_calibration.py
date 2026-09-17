@@ -197,15 +197,15 @@ class ArucoBoardDetector:
                 frame, self.camera_matrix, self.dist_coeffs,
                 rvec, tvec, 40.0
             )
-            cv2.putText(frame, "✓ Board Detected!", (10, 30),
+            cv2.putText(frame, "Board Detected", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             pos = tvec.flatten()
             cv2.putText(frame, f"X: {pos[0]:6.1f} mm", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
             cv2.putText(frame, f"Y: {pos[1]:6.1f} mm", (10, 90),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
             cv2.putText(frame, f"Z: {pos[2]:6.1f} mm", (10, 120),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
         else:
             cv2.putText(frame, "✗ Board not detected", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
@@ -295,11 +295,13 @@ class ArucoBoardDetector:
             corners, ids, _ = self.detector.detectMarkers(gray)
             
             frame = self.draw_detection(frame, rvec, tvec, ids, corners, success)
+            frame = cv2.resize(frame, None, fx=0.5,fy=0.5)
+            cv2.imshow('Aruco Board Detection', frame)
             
             if mode == 'calibrate':
                 cv2.putText(frame, f"Calibration poses: {len(self.calibration_data)}", 
-                           (10, frame.shape[0] - 20),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 200, 0), 2)
+                           (10, 100),
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 200, 255), 2)
             
             cv2.imshow('ArUco Board Detection', frame)
             

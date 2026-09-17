@@ -15,9 +15,10 @@ import cv2
 import cv2.aruco as aruco
 from pathlib import Path
 from scipy.spatial.transform import Rotation as R
-from xarm.wrapper import XArmAPI
+
 from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
 from fk_lite6 import fk_lite6
+import robot_io
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DATA_DIR = _SCRIPT_DIR.parent / 'data'
@@ -31,10 +32,11 @@ _CORNER_ROLL = {0: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 def get_robot_end_effector_pose(arm):
     """Return (T_base_ee, joints_deg, raw_pose) from the arm's current state.
 
-    T_base_ee is derived by forward kinematics from arm.get_angle() via fk_lite6,
-    NOT taken from the controller's cartesian get_position(). joints_deg is the
-    6-element degree list; raw_pose is the controller [x,y,z,r,p,y] kept as a
-    cross-check (may be None if get_position fails).
+    T_base_ee is derived by forward kinematics from the joint angles read via
+    robot_io.read_joints_rad(arm) and passed to fk_lite6 — NOT taken from the
+    controller's cartesian get_position(). joints_deg is the 6-element degree
+    list; raw_pose is the controller [x,y,z,r,p,y] kept as a cross-check (may be
+    None if get_position fails).
     """
     raise NotImplementedError('TODO: get_robot_end_effector_pose')
 

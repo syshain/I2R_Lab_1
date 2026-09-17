@@ -16,10 +16,10 @@ import cv2
 import cv2.aruco as aruco
 from pathlib import Path
 from scipy.spatial.transform import Rotation as R
-from xarm.wrapper import XArmAPI
 
 from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
 from fk_lite6 import fk_lite6
+import robot_io
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DATA_DIR = _SCRIPT_DIR.parent / 'data'
@@ -44,15 +44,14 @@ def get_robot_end_effector_pose(arm):
         raw_pose    : controller's [x,y,z,roll,pitch,yaw] (mm,deg), kept only as
                       a cross-check against the FK result.
     """
-    code, angle_data = arm.get_servo_angle()[:6]
-    if code != 0:
-        print(f"Error getting angle: {code}")
+    try:
+        q_rad = robot_io.read_joints_rad(arm)   # (6,) radians
+    except RuntimeError as e:
+        print(f"Error reading joints: {e}")
         return None, None, None
 
-    # SDK reports joint angles in degrees; FK wants radians.
-    joints_deg = [float(a) for a in angle_data]
-    q_rad = np.deg2rad(joints_deg)
-    T_base_ee = fk_lite6(q_rad)
+    joints_deg = [float(v) for v in np.rad2deg(q_rad)]
+    T_base_ee = fk_lite6(np.asarray(q_rad, dtype=np.float64))
 
     code_p, pose_data = arm.get_position()
     if code_p != 0:
@@ -81,7 +80,7 @@ class ArucoBoardDetector:
 
         self._build_board_model()
 
-        self.arm = XArmAPI(ROBOT_IP)
+        self.arm = robot_io.connect_arm(ROBOT_IP)
         self.cap = None
         self.camera_index = camera_index
         self.calibration_data = []

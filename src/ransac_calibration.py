@@ -173,7 +173,17 @@ class RobustHandEyeCalibrator:
             print("RANSAC produced no valid hypothesis.")
             return None
 
-        # Assign inliers against the winning hypothesis.
+        # The closed-form hand-eye solvers are weak initializers on this
+        # geometry: their RAW solutions sit tens of mm off even when the data
+        # is good, but a short nonlinear polish collapses them to the true
+        # answer. Refine the winner FIRST, then assign inliers against the
+        # polished transform so the gate sees poses where they actually belong.
+        refined = self.refine_calibration(initial_T_ee_cam=best_T, use_inliers=False)
+        if refined is not None:
+            best_T = refined
+            best_score = self.evaluate_consistency(best_T, self.calibration_data)
+
+        # Assign inliers against the (refined) winning hypothesis.
         positions = self._board_positions(self.calibration_data, best_T)
         center = np.median(positions, axis=0)
         dists = np.linalg.norm(positions - center, axis=1)
@@ -244,8 +254,13 @@ class RobustHandEyeCalibrator:
         return self.T_ee_cam_refined
     
     def _board_positions(self, poses, T_ee_cam):
-        """Reconstructed board positions in the robot base frame."""
-        return np.array([(d['T_base_ee'] @ T_ee_cam @ d['T_cam_board'])[:3, 3] for d in poses])
+        """Reconstructed board positions in the robot base frame.
+
+        Always returns a 2-D (N, 3) array so callers can vstack / index it
+        safely even when `poses` is empty (an empty list would otherwise yield
+        a 1-D (0,) array and break np.vstack)."""
+        pts = [(d['T_base_ee'] @ T_ee_cam @ d['T_cam_board'])[:3, 3] for d in poses]
+        return np.asarray(pts, dtype=float).reshape(-1, 3)
 
     def visualize_results(self, T_ee_cam):
         """Plot reconstructed board positions (3D, top-view, histogram)."""
@@ -369,7 +384,7 @@ if __name__ == "__main__":
     print("STEP 1: RANSAC Hand-Eye Calibration (subset sampling)")
     print("="*60)
     T_ee_cam = calibrator.ransac_calibrate(n_iterations=2000,
-                                           inlier_threshold_mm=10.0, seed=0)
+                                           inlier_threshold_mm=25.0, seed=0)
 
     if T_ee_cam is not None:
         print("\n" + "="*60)

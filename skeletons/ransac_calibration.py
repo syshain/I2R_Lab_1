@@ -45,6 +45,11 @@ class RobustHandEyeCalibrator:
         raise NotImplementedError('TODO: refine_calibration')
 
     def _board_positions(self, poses, T_ee_cam):
+        """Reconstructed board positions in the robot base frame.
+
+        Must always return a 2-D (N, 3) array — including when `poses` is empty
+        (return shape (0, 3), not a flat (0,) array) — so visualize_results can
+        vstack / index it safely."""
         raise NotImplementedError('TODO: _board_positions')
 
     def visualize_results(self, T_ee_cam):

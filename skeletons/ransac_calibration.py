@@ -32,6 +32,14 @@ class RobustHandEyeCalibrator:
     def filter_outliers(self, max_angle_error_deg=45.0, keep_ratio=0.9):
         raise NotImplementedError('TODO: filter_outliers')
 
+    def baseline_calibrate(self):
+        """Solve T_ee_cam on ALL poses (no RANSAC, no outlier rejection).
+
+        Runs each of the four OpenCV closed-form methods on the full dataset,
+        refines each result, and returns (best_T, scores_dict) where
+        scores_dict maps method name -> post-refinement consistency (mm)."""
+        raise NotImplementedError('TODO: baseline_calibrate')
+
     def _inlier_subset(self, use_inliers=True):
         raise NotImplementedError('TODO: _inlier_subset')
 

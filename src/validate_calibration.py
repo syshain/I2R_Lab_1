@@ -29,13 +29,15 @@ from pathlib import Path
 from scipy.spatial.transform import Rotation as R
 
 from transformation_calibration import ArucoBoardDetector
-from lab_config import ROBOT_IP
+from lab_config import (
+    ROBOT_IP,
+    VALIDATION_MIN_POSES as MIN_POSES,
+    VALIDATION_MAX_POSES as MAX_POSES,
+    QUALITY_EXCELLENT_MM, QUALITY_GOOD_MM, QUALITY_ACCEPTABLE_MM,
+)
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DATA_DIR = _SCRIPT_DIR.parent / 'data'
-
-MIN_POSES = 8
-MAX_POSES = 10
 
 
 def reconstruct_board_positions(T_ee_cam, pairs):
@@ -62,14 +64,15 @@ def report(name, positions):
     print(f"  Max deviation   : {max_dev:.2f} mm from mean")
     print(f"  RMS scatter     : {rms:.2f} mm")
 
-    if max_dev < 5:
-        grade = "EXCELLENT (< 5 mm)"
-    elif max_dev < 10:
-        grade = "GOOD (< 10 mm)"
-    elif max_dev < 20:
-        grade = "ACCEPTABLE (< 20 mm)"
+    if max_dev < QUALITY_EXCELLENT_MM:
+        grade = f"EXCELLENT (< {QUALITY_EXCELLENT_MM:g} mm)"
+    elif max_dev < QUALITY_GOOD_MM:
+        grade = f"GOOD (< {QUALITY_GOOD_MM:g} mm)"
+    elif max_dev < QUALITY_ACCEPTABLE_MM:
+        grade = f"ACCEPTABLE (< {QUALITY_ACCEPTABLE_MM:g} mm)"
     else:
-        grade = "POOR (>= 20 mm) - consider re-capturing with more variation"
+        grade = (f"POOR (>= {QUALITY_ACCEPTABLE_MM:g} mm) - "
+                 f"consider re-capturing with more variation")
     print(f"  Quality         : {grade}")
     return max_dev
 

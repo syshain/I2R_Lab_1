@@ -16,15 +16,16 @@ import cv2.aruco as aruco
 from pathlib import Path
 from scipy.spatial.transform import Rotation as R
 
-from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
+from lab_config import (
+    ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT,
+    ARUCO_BOARD_SCALE, ARUCO_REPROJ_REJECT_PX,
+)
 from fk_lite6 import fk_lite6
 import robot_io
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DATA_DIR = _SCRIPT_DIR.parent / 'data'
 
-# Config stores marker corners at 30 mm scale; physical markers are 40 mm.
-_BOARD_SCALE = 4.0 / 3.0
 # Per-marker corner winding correction (matches Labs 2/3 detector).
 _CORNER_ROLL = {0: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 

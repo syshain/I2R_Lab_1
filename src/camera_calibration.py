@@ -12,8 +12,10 @@ import glob
 import os
 from pathlib import Path
 
+from lab_config import CHESSBOARD_SIZE, SQUARE_SIZE_MM, CALIB_IMAGE_PATTERN
+
 _SCRIPT_DIR = Path(__file__).resolve().parent
-_DATA_DIR = _SCRIPT_DIR.parent / 'data' 
+_DATA_DIR = _SCRIPT_DIR.parent / 'data'
 
 def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_mm=25.0):
     """Estimate intrinsics + distortion from chessboard images."""
@@ -206,10 +208,9 @@ def calibrate_camera(images_path='*.jpg', chessboard_size=(10, 7), square_size_m
 
 
 if __name__ == "__main__":
-    # Configuration - modify these to match your setup.
-    CHESSBOARD_SIZE = (10, 7)  # (inner corners per row, inner corners per column)
-    SQUARE_SIZE_MM = 15.0      # measure your printed chessboard square size in mm
-    IMAGE_PATTERN = os.path.join("camera_calibration_images","calib_*.jpg")
+    # Chessboard geometry + image pattern come from lab_config.py — edit them
+    # there rather than here so the whole pipeline stays consistent.
+    IMAGE_PATTERN = CALIB_IMAGE_PATTERN
 
     print(f"Chessboard: {CHESSBOARD_SIZE[0]}x{CHESSBOARD_SIZE[1]} inner corners, "
           f"{SQUARE_SIZE_MM} mm squares, pattern '{IMAGE_PATTERN}'")

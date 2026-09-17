@@ -17,15 +17,16 @@ import cv2.aruco as aruco
 from pathlib import Path
 from scipy.spatial.transform import Rotation as R
 
-from lab_config import ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT
+from lab_config import (
+    ROBOT_IP, CAMERA_INDEX, FRAME_WIDTH, FRAME_HEIGHT,
+    ARUCO_BOARD_SCALE, ARUCO_REPROJ_REJECT_PX,
+)
 from fk_lite6 import fk_lite6
 import robot_io
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _DATA_DIR = _SCRIPT_DIR.parent / 'data'
 
-# Config stores marker corners at 30 mm scale; physical markers are 40 mm.
-_BOARD_SCALE = 4.0 / 3.0
 # Per-marker corner winding correction (matches Labs 2/3 detector).
 _CORNER_ROLL = {0: 0, 2: 0, 3: 0, 4: 0, 5: 0}
 
@@ -97,7 +98,7 @@ class ArucoBoardDetector:
 
         scaled = {}
         for mid, raw in zip(ids, corners):
-            pts = np.array(raw, dtype=np.float64) * _BOARD_SCALE
+            pts = np.array(raw, dtype=np.float64) * ARUCO_BOARD_SCALE
             roll = _CORNER_ROLL.get(mid, 0)
             scaled[mid] = np.roll(pts, -roll, axis=0)
 
@@ -109,7 +110,7 @@ class ArucoBoardDetector:
         self.centroid_offset = centroid
 
         print(f"[Model] Loaded {len(ids)} markers  "
-              f"scale={_BOARD_SCALE:.4f}  "
+              f"scale={ARUCO_BOARD_SCALE:.4f}  "
               f"centroid=[{centroid[0]:.2f},{centroid[1]:.2f},{centroid[2]:.2f}]")
 
     def start_camera(self):
@@ -185,8 +186,9 @@ class ArucoBoardDetector:
         reproj_error = float(np.mean(
             np.linalg.norm(proj.reshape(-1, 2) - image_points, axis=1)
         ))
-        if reproj_error > 15.0:
-            print(f"[REJECT] reproj_err={reproj_error:.2f}px > 15px")
+        if reproj_error > ARUCO_REPROJ_REJECT_PX:
+            print(f"[REJECT] reproj_err={reproj_error:.2f}px "
+                  f"> {ARUCO_REPROJ_REJECT_PX:g}px")
             return False, None, None, None, reproj_error
 
         R_mat, _ = cv2.Rodrigues(rvec)

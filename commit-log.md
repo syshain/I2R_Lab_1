@@ -17,3 +17,9 @@ Initial commit of working lab 1 code
 ### Fixed camera calibration issues
 - Code writes calibration report showing detected and reprojected corners
 
+# v4 - Modularized, constants separated
+### 17 Sep 2026
+### Modularized lab 1 code and put all constants in separate file
+- Lab 1 code uses the same unified modularization as other labs
+- All tuneable constants including board size etc put now in lab_config.py
+

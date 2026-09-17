@@ -15,6 +15,11 @@ from scipy.spatial.transform import Rotation as R
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
 
+from lab_config import (
+    RANSAC_ITERATIONS, RANSAC_INLIER_THRESHOLD_MM, RANSAC_SEED,
+    QUALITY_EXCELLENT_MM, QUALITY_GOOD_MM, QUALITY_ACCEPTABLE_MM,
+)
+
 # Silence OpenCV's C++ error logging while RANSAC probes degenerate subsets;
 # those failures are expected and handled in Python, not worth spamming stderr.
 os.environ.setdefault('OPENCV_LOG_LEVEL', 'SILENT')
@@ -197,6 +202,47 @@ class RobustHandEyeCalibrator:
         self.T_ee_cam = best_T
         return best_T
 
+    def baseline_calibrate(self):
+        """Solve T_ee_cam on ALL poses (no RANSAC, no outlier rejection).
+
+        Runs each of the four OpenCV closed-form methods on the full dataset,
+        refines each result, and returns (best_T, scores_dict) where
+        scores_dict maps method name -> post-refinement consistency (mm).
+        This gives a fair comparison against RANSAC: same data, same refinement,
+        just without the subset-sampling / inlier-rejection step.
+        """
+        all_data = self.calibration_data
+        n = len(all_data)
+        methods = {
+            'Tsai':       cv2.CALIB_HAND_EYE_TSAI,
+            'Park':       cv2.CALIB_HAND_EYE_PARK,
+            'Andreff':    cv2.CALIB_HAND_EYE_ANDREFF,
+            'Daniilidis': cv2.CALIB_HAND_EYE_DANIILIDIS,
+        }
+
+        print(f"\n Solving on all {n} poses (no outlier rejection)...")
+        results = {}
+        for name, flag in methods.items():
+            T_raw, ok = self._solve_on_subset(all_data, flag)
+            if not ok or T_raw is None:
+                continue
+            raw_score = self.evaluate_consistency(T_raw, all_data)
+            refined = self.refine_calibration(initial_T_ee_cam=T_raw, use_inliers=False)
+            final_T = refined if refined is not None else T_raw
+            final_score = self.evaluate_consistency(final_T, all_data)
+            results[name] = {'T': final_T, 'raw': raw_score, 'final': final_score}
+            print(f"   {name:12s}  raw={raw_score:7.2f} mm  "
+                  f"refined={final_score:7.2f} mm")
+
+        if not results:
+            print("   No method converged on the full dataset.")
+            return None, {}
+
+        best_name = min(results, key=lambda k: results[k]['final'])
+        best = results[best_name]
+        print(f"   Best baseline method: {best_name} ({best['final']:.2f} mm)")
+        return best['T'], {k: v['final'] for k, v in results.items()}
+
     def _inlier_subset(self, use_inliers=True):
         """Poses passing the RANSAC inlier test (or all poses if none set)."""
         if use_inliers and self.inlier_mask is not None:
@@ -325,11 +371,12 @@ class RobustHandEyeCalibrator:
             print(f"  Std:  ({std[0]:.1f}, {std[1]:.1f}, {std[2]:.1f}) mm")
             print(f"  Max deviation from mean: {np.max(np.linalg.norm(inlier_positions - mean, axis=1)):.1f} mm")
 
-            if np.max(std) < 5:
+            worst = float(np.max(std))
+            if worst < QUALITY_EXCELLENT_MM:
                 print("\n✓ Calibration quality: EXCELLENT")
-            elif np.max(std) < 10:
+            elif worst < QUALITY_GOOD_MM:
                 print("\n✓ Calibration quality: GOOD")
-            elif np.max(std) < 20:
+            elif worst < QUALITY_ACCEPTABLE_MM:
                 print("\n⚠ Calibration quality: ACCEPTABLE")
             else:
                 print("\n✗ Calibration quality: POOR - Consider re-collecting data")
@@ -383,10 +430,38 @@ if __name__ == "__main__":
     print("\n" + "="*60)
     print("STEP 1: RANSAC Hand-Eye Calibration (subset sampling)")
     print("="*60)
-    T_ee_cam = calibrator.ransac_calibrate(n_iterations=2000,
-                                           inlier_threshold_mm=25.0, seed=0)
+    T_ee_cam = calibrator.ransac_calibrate(
+        n_iterations=RANSAC_ITERATIONS,
+        inlier_threshold_mm=RANSAC_INLIER_THRESHOLD_MM,
+        seed=RANSAC_SEED,
+    )
 
     if T_ee_cam is not None:
+        # ---- Baseline comparison: same data, no RANSAC -------------------
+        print("\n" + "="*60)
+        print("BASELINE: Direct Calibration (all poses, no outlier rejection)")
+        print("="*60)
+        T_baseline, baseline_scores = calibrator.baseline_calibrate()
+        if T_baseline is not None:
+            baseline_consistency = calibrator.evaluate_consistency(
+                T_baseline, calibrator.calibration_data)
+            ransac_consistency = calibrator.evaluate_consistency(
+                T_ee_cam, calibrator.calibration_data)
+            print(f"\n{'Method':<20} {'Consistency (mm)':>18}")
+            print("-"*40)
+            for name, score in sorted(baseline_scores.items(),
+                                      key=lambda x: x[1]):
+                print(f"  {name:<18} {score:>16.2f}")
+            print(f"  {'RANSAC (this run)':<18} {ransac_consistency:>16.2f}")
+            delta = baseline_consistency - ransac_consistency
+            if delta > 0:
+                print(f"\n  RANSAC improved consistency by {delta:.2f} mm "
+                      f"over the best direct method.")
+            else:
+                print(f"\n  Note: direct calibration matched or beat RANSAC "
+                      f"by {-delta:.2f} mm on this dataset (likely few/no outliers).")
+        print("="*60)
+
         print("\n" + "="*60)
         print("STEP 3: Nonlinear Refinement")
         print("="*60)

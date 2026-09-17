@@ -249,6 +249,10 @@ class RobustHandEyeCalibrator:
 
     def visualize_results(self, T_ee_cam):
         """Plot reconstructed board positions (3D, top-view, histogram)."""
+        if T_ee_cam is None or np.asarray(T_ee_cam).shape != (4, 4):
+            print("⚠ No valid T_ee_cam to visualize; skipping plots.")
+            return
+
         if self.inlier_mask is not None:
             inlier_data = [d for i, d in enumerate(self.calibration_data) if self.inlier_mask[i]]
             outlier_data = [d for i, d in enumerate(self.calibration_data) if not self.inlier_mask[i]]
@@ -372,6 +376,14 @@ if __name__ == "__main__":
         print("STEP 3: Nonlinear Refinement")
         print("="*60)
         T_ee_cam_refined = calibrator.refine_calibration(use_inliers=True)
+
+        # refine_calibration can return None (e.g. no usable initial guess).
+        # Fall back to the raw RANSAC estimate so downstream steps always get
+        # a real 4x4 transform instead of crashing on a None matmul.
+        if T_ee_cam_refined is None:
+            print("\n⚠ Refinement returned no result; using the raw RANSAC "
+                  "estimate for visualization and saving.")
+            T_ee_cam_refined = T_ee_cam
 
         print("\n" + "="*60)
         print("STEP 4: Visualization")

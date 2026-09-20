@@ -3,4 +3,10 @@
 *.venv
 *.png
 *.jpg
+*.zip
 __*__
+reference/
+data/*.txt
+data/camera_calibration_images/*.txt
+
+

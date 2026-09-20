@@ -1,10 +1,5 @@
 """Forward kinematics for the UFACTORY Lite 6 (modified / Craig D-H).
 
-Python port of reference/MATLAB_FK/fk_lite6.m. This is the single source of
-truth for turning joint angles into a base->end-effector transform in Lab 1, so
-the hand-eye solver derives T_base_ee from the arm's reported joints rather than
-trusting the controller's cartesian get_position() output.
-
 Units:
     q      : joint angles [q1..q6] in RADIANS
     d, a   : link offset / length in MM

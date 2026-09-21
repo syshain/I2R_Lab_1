@@ -83,7 +83,7 @@ RANSAC_ITERATIONS = 2000
 # A pose is an "inlier" if its reconstructed board position lies within this
 # many mm of the consensus. Laxer keeps more poses in the final fit; tighter
 # rejects borderline frames. Applied after the initial nonlinear polish.
-RANSAC_INLIER_THRESHOLD_MM = 15.0
+RANSAC_INLIER_THRESHOLD_MM = 2.0
 
 # Random seed for reproducibility (None = unseeded).
 RANSAC_SEED = 0

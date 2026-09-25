@@ -61,6 +61,8 @@ def fk_lite6(q):
 
 if __name__ == "__main__":
     # Sanity check: at zero pose the EE should sit ~+154 mm along Z.
+    q = np.array([0,0,0,0,0,0]) # Joint configuration in DEGREES. Change this as needed
+    q_rad = np.deg2rad(q) 
     t0 = fk_lite6(np.zeros(6))[:3, 3]
     print("q=0 EE position (mm):", t0.round(3))
     assert abs(t0[2] - 154.0) < 5.0, f"unexpected q=0 Z: {t0[2]}"

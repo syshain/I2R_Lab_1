@@ -20,7 +20,7 @@ ROBOT_IP = os.environ.get('ROBOT_IP', '192.168.1.153')
 #   Linux:       v4l2-ctl --list-devices          (or ls /dev/video*)
 #   macOS:       system_profiler SPUSBDataType    (or just try indices 0..N)
 #   Windows:     Device Manager > Imaging devices; usually index 0
-CAMERA_INDEX = int(os.environ.get('CAMERA_INDEX', '1'))
+CAMERA_INDEX = int(os.environ.get('CAMERA_INDEX', '0'))
 
 # Capture resolution used by the calibration pipelines.
 FRAME_WIDTH = 1920
@@ -83,7 +83,7 @@ RANSAC_ITERATIONS = 2000
 # A pose is an "inlier" if its reconstructed board position lies within this
 # many mm of the consensus. Laxer keeps more poses in the final fit; tighter
 # rejects borderline frames. Applied after the initial nonlinear polish.
-RANSAC_INLIER_THRESHOLD_MM = 2.0
+RANSAC_INLIER_THRESHOLD_MM = 15.0
 
 # Random seed for reproducibility (None = unseeded).
 RANSAC_SEED = 0

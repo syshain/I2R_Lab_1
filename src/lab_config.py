@@ -12,7 +12,7 @@ import os
 # ---------------------------------------------------------------------------
 
 # UFACTORY Lite 6 controller IP (same subnet as the PC; verify with ping).
-ROBOT_IP = os.environ.get('ROBOT_IP', '192.168.1.153')
+ROBOT_IP = os.environ.get('ROBOT_IP', '192.168.1.158')
 
 # USB device index of the wrist-mounted camera (integer passed to
 # cv2.VideoCapture). Which index your wrist cam gets varies by machine, so
@@ -20,7 +20,7 @@ ROBOT_IP = os.environ.get('ROBOT_IP', '192.168.1.153')
 #   Linux:       v4l2-ctl --list-devices          (or ls /dev/video*)
 #   macOS:       system_profiler SPUSBDataType    (or just try indices 0..N)
 #   Windows:     Device Manager > Imaging devices; usually index 0
-CAMERA_INDEX = int(os.environ.get('CAMERA_INDEX', '0'))
+CAMERA_INDEX = int(os.environ.get('CAMERA_INDEX', '4'))
 
 # Capture resolution used by the calibration pipelines.
 FRAME_WIDTH = 1920

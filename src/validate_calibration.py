@@ -34,6 +34,7 @@ from scipy.spatial.transform import Rotation as R
 
 from transformation_calibration import ArucoArtifactDetector, get_robot_end_effector_pose
 from get_transform import resolve_T_0_6
+from robot_io import get_robot_sn
 from lab_config import (
     ROBOT_IP,
     VALIDATION_MIN_POSES as MIN_POSES,
@@ -58,7 +59,9 @@ def reconstruct_artifact_positions(T_6_C, pairs):
 def _stats(positions):
     """Compute the validation metrics for an array of 3D positions."""
     mean = np.mean(positions, axis=0)
-    std = np.std(positions, axis=0)
+    # Sample standard deviation (n-1), matching the formula in the handout
+    # (Section 5.4): s = sqrt( 1/(n-1) * sum (x_k - x_mean)^2 ).
+    std = np.std(positions, axis=0, ddof=1)
     max_dev = float(np.max(np.linalg.norm(positions - mean, axis=1)))
     rms = float(np.sqrt(np.mean(np.sum((positions - mean) ** 2, axis=1))))
     return {'n': len(positions), 'mean': mean, 'std': std,
@@ -131,7 +134,7 @@ def _transform_lines(label, T):
     return ''.join(lines)
 
 
-def write_validation_report(transforms, results):
+def write_validation_report(transforms, results, robot_sn='not recorded'):
     """Write validation_results.txt covering every evaluated transform.
 
     `transforms` maps name -> T_6_C matrix; `results` maps name -> stats dict
@@ -142,6 +145,7 @@ def write_validation_report(transforms, results):
     with open(path, 'w') as f:
         f.write("HAND-EYE CALIBRATION VALIDATION RESULTS\n")
         f.write("=" * 60 + "\n\n")
+        f.write(f"robot_sn: {robot_sn}\n\n")
         f.write("Worksheet notation: base=0, end-effector=6, camera=C,\n")
         f.write("ArUco artifact=W. Metric: scatter of reconstructed artifact\n")
         f.write("position T_0_W = T_0_6 @ T_6_C @ T_C_W across relocated poses.\n\n")
@@ -185,10 +189,11 @@ def write_validation_report(transforms, results):
             for axis, label in enumerate(['X', 'Y', 'Z']):
                 f.write(f"{'Std ' + label + ' (mm)':<25} {sa['std'][axis]:>14.2f} "
                         f"{sb['std'][axis]:>14.2f}\n")
-            winner = b if sb['max_dev'] < sa['max_dev'] else \
-                     (a if sa['max_dev'] < sb['max_dev'] else 'Tie')
-            diff = abs(sa['max_dev'] - sb['max_dev'])
-            f.write(f"\nWinner (tighter max-deviation): {winner} by {diff:.2f} mm\n")
+            sma, smb = float(np.max(sa['std'])), float(np.max(sb['std']))
+            f.write(f"{'s_max (mm)':<25} {sma:>14.2f} {smb:>14.2f}\n")
+            winner = b if smb < sma else (a if sma < smb else 'Tie')
+            diff = abs(sma - smb)
+            f.write(f"\nWinner (lower s_max): {winner} by {diff:.2f} mm\n")
 
     print(f"\n✓ Saved: validation_results.txt")
 
@@ -212,6 +217,8 @@ def main():
     det = ArucoArtifactDetector()
     if not det.start_camera():
         return
+    robot_sn = get_robot_sn(det.arm)
+    print(f"Robot serial number: {robot_sn}")
     det.calibration_data = []
 
     print("\nControls:")
@@ -261,6 +268,7 @@ def main():
                 else:
                     det.calibration_data.append({
                         'pose_id': pose_id,
+                        'robot_sn': robot_sn,
                         'T_0_6': T_0_6,           # FK-derived
                         'robot_joints': joints_deg,
                         'robot_pose_raw': raw_pose,
@@ -314,13 +322,14 @@ def main():
         for axis, label in enumerate(['X', 'Y', 'Z']):
             print(f"{'Std ' + label + ' (mm)':<25} {sa['std'][axis]:>12.2f} "
                   f"{sb['std'][axis]:>12.2f}")
-        winner = b if sb['max_dev'] < sa['max_dev'] else \
-                 (a if sa['max_dev'] < sb['max_dev'] else 'Tie')
-        diff = abs(sa['max_dev'] - sb['max_dev'])
-        print(f"\n  → {winner} is tighter by {diff:.2f} mm (max-deviation metric).")
+        sma, smb = float(np.max(sa['std'])), float(np.max(sb['std']))
+        print(f"{'s_max (mm)':<25} {sma:>12.2f} {smb:>12.2f}")
+        winner = b if smb < sma else (a if sma < smb else 'Tie')
+        diff = abs(sma - smb)
+        print(f"\n  → {winner} has lower s_max by {diff:.2f} mm.")
 
     # Persist everything to validation_results.txt.
-    write_validation_report(transforms, results)
+    write_validation_report(transforms, results, robot_sn=robot_sn)
 
 
 if __name__ == "__main__":

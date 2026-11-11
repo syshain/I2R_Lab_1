@@ -41,6 +41,7 @@ class RobustHandEyeCalibrator:
         self.calibration_data = []
         self.T_6_C = None
         self.inlier_mask = None
+        self.robot_sn = 'not recorded'
 
     # The Park solver needs at least 3 poses (3 relative-rotation pairs to span
     # 3D rotation space); we sample 4 per hypothesis for margin. Sampling small
@@ -71,6 +72,8 @@ class RobustHandEyeCalibrator:
             art_positions.append(T_0_W[:3, 3])
 
         art_positions = np.array(art_positions)
+        # Internal RANSAC scoring only (never displayed), so the population
+        # std is kept: it scales every candidate the same way.
         return np.mean(np.std(art_positions, axis=0))
 
     def ransac_calibrate(self, n_iterations=2000, inlier_threshold_mm=10.0,
@@ -140,7 +143,8 @@ class RobustHandEyeCalibrator:
             print("   Solver did not converge on the full dataset.")
             return None, {}
 
-        score = float(np.max(self._artifact_positions(all_data, T_6_C).std(axis=0)))
+        # Sample std (n-1), matching the handout formula and validate_calibration.py.
+        score = float(np.max(self._artifact_positions(all_data, T_6_C).std(axis=0, ddof=1)))
         print(f"   Baseline (all poses, closed form only)  s_max={score:6.2f} mm")
 
         return T_6_C, {'Baseline (all)': score}
@@ -192,8 +196,8 @@ class RobustHandEyeCalibrator:
 
         self.T_6_C_refined = param_to_transform(result.x)
 
-        before_smax = float(np.max(self._artifact_positions(data, initial_T_6_C).std(axis=0)))
-        after_smax = float(np.max(self._artifact_positions(data, self.T_6_C_refined).std(axis=0)))
+        before_smax = float(np.max(self._artifact_positions(data, initial_T_6_C).std(axis=0, ddof=1)))
+        after_smax = float(np.max(self._artifact_positions(data, self.T_6_C_refined).std(axis=0, ddof=1)))
 
         print(f"  Before refinement: s_max={before_smax:.2f} mm")
         print(f"  After refinement:  s_max={after_smax:.2f} mm")
@@ -226,9 +230,11 @@ class RobustHandEyeCalibrator:
 
         ax1 = fig.add_subplot(131, projection='3d')
         if len(inlier_positions) > 0:
-            ax1.scatter(*inlier_positions.T, c='green', marker='o', s=60, label='Inliers', alpha=0.7)
+            ax1.scatter(inlier_positions[:, 0], inlier_positions[:, 1], inlier_positions[:, 2],
+                        c='green', marker='o', s=60, label='Inliers', alpha=0.7)
         if len(outlier_positions) > 0:
-            ax1.scatter(*outlier_positions.T, c='red', marker='x', s=40, label='Outliers', alpha=0.8)
+            ax1.scatter(outlier_positions[:, 0], outlier_positions[:, 1], outlier_positions[:, 2],
+                        c='red', marker='x', s=40, label='Outliers', alpha=0.8)
         ax1.set_xlabel('X (mm)'); ax1.set_ylabel('Y (mm)'); ax1.set_zlabel('Z (mm)')
         ax1.set_title('Artifact Position in Robot Base Frame')
         ax1.legend()
@@ -257,7 +263,9 @@ class RobustHandEyeCalibrator:
         plt.show()
 
         if len(inlier_positions) > 0:
-            s_max_vis = float(np.max(np.std(inlier_positions, axis=0)))
+            # Sample std (n-1), matching the handout formula and
+            # validate_calibration.py.
+            s_max_vis = float(np.max(np.std(inlier_positions, axis=0, ddof=1)))
             print("\n" + "="*60)
             print("FINAL CALIBRATION RESULTS")
             print("="*60)
@@ -315,12 +323,14 @@ class RobustHandEyeCalibrator:
         with open(str(_DATA_DIR / txt_name), 'w') as f:
             f.write("Hand-Eye Calibration Result: T_6_C (RANSAC)\n")
             f.write("=" * 60 + "\n\n")
+            f.write(f"robot_sn: {self.robot_sn}\n\n")
             f.write(self._transform_block(T_6_C))
         print(f"✓ Saved: {txt_name}")
 
         # --- Full results report --------------------------------------------
         report_path = str(_DATA_DIR / 'ransac_calibration_results.txt')
         with open(report_path, 'w') as f:
+            f.write(f"robot_sn: {self.robot_sn}\n")
             f.write("ROBUST HAND-EYE CALIBRATION RESULTS (RANSAC)\n")
             f.write("=" * 60 + "\n\n")
             f.write("Worksheet notation: base=0, end-effector=6, camera=C,\n")
@@ -380,7 +390,12 @@ if __name__ == "__main__":
     try:
         data = np.load(str(_DATA_DIR / 'calibration_data.npy'), allow_pickle=True)
         calibrator.calibration_data = data.tolist()
-        print(f"\nLoaded {len(calibrator.calibration_data)} existing poses")
+        if calibrator.calibration_data:
+            # Propagate the bench identity recorded at capture time.
+            calibrator.robot_sn = calibrator.calibration_data[0].get(
+                'robot_sn', 'not recorded')
+        print(f"\nLoaded {len(calibrator.calibration_data)} existing poses "
+              f"(robot_sn: {calibrator.robot_sn})")
     except FileNotFoundError:
         print("\nNo existing data found. Please capture new poses first "
               "(see transformation_calibration.py).")
@@ -413,9 +428,9 @@ if __name__ == "__main__":
         T_baseline, baseline_scores = calibrator.baseline_calibrate()
         if T_baseline is not None:
             baseline_smax = float(np.max(calibrator._artifact_positions(
-                calibrator.calibration_data, T_baseline).std(axis=0)))
+                calibrator.calibration_data, T_baseline).std(axis=0, ddof=1)))
             ransac_smax = float(np.max(calibrator._artifact_positions(
-                inlier_data, T_6_C).std(axis=0)))
+                inlier_data, T_6_C).std(axis=0, ddof=1)))
             print(f"\n  Baseline fitted on: ALL {n_total} poses")
             print(f"  RANSAC fitted on:   {n_inliers}/{n_total} inlier poses "
                   f"(threshold {RANSAC_INLIER_THRESHOLD_MM:g} mm)")
@@ -442,7 +457,7 @@ if __name__ == "__main__":
         refine_before = None
         try:
             refine_before = float(np.max(calibrator._artifact_positions(
-                inlier_data, T_6_C).std(axis=0)))
+                inlier_data, T_6_C).std(axis=0, ddof=1)))
         except Exception:
             pass
         T_6_C_refined = calibrator.refine_calibration(
@@ -458,7 +473,7 @@ if __name__ == "__main__":
 
         # Final s_max on the inlier subset (the graded metric).
         s_max_final = float(np.max(calibrator._artifact_positions(
-            inlier_data, T_6_C_refined).std(axis=0)))
+            inlier_data, T_6_C_refined).std(axis=0, ddof=1)))
         refine_after = s_max_final
         if s_max_final < S_MAX_EXCELLENT_MM:
             print(f"\n✓ Calibration quality (s_max={s_max_final:.1f} mm): EXCELLENT")
@@ -480,7 +495,7 @@ if __name__ == "__main__":
         if getattr(calibrator, 'best_score', None) is not None:
             try:
                 best_smax = float(np.max(calibrator._artifact_positions(
-                    inlier_data, calibrator.T_6_C).std(axis=0)))
+                    inlier_data, calibrator.T_6_C).std(axis=0, ddof=1)))
             except Exception:
                 pass
 

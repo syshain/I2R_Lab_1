@@ -36,3 +36,11 @@ Initial commit of working lab 1 code
 - Replaced cv2.calibrateHandEye with self-contained AX=XBX^-1 solver in get_transform.py
 - Renamed all transformation matrices to follow worksheet convention
 - Removed fallback and calibration data from commit
+
+# v5.1 - Lab 1 handout consistency fixes
+- Validation script now prints max deviation and RMS scatter
+- All robot interfacing scripts now record the robot serial number in their corresponding data record files.
+
+# v6.0 - Consistency with lab 1 handout
+- Previous commit only fixed np.std find and replaces. This commit fixes that. 
+

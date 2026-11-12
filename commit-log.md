@@ -37,10 +37,15 @@ Initial commit of working lab 1 code
 - Renamed all transformation matrices to follow worksheet convention
 - Removed fallback and calibration data from commit
 
-# v5.1 - Lab 1 handout consistency fixes
+## v5.1 - Lab 1 handout consistency fixes
 - Validation script now prints max deviation and RMS scatter
 - All robot interfacing scripts now record the robot serial number in their corresponding data record files.
 
 # v6.0 - Consistency with lab 1 handout
 - Previous commit only fixed np.std find and replaces. This commit fixes that. 
+
+## v6.1 - Data updated after 11Nov run
+### 12 Nov 2026 (Lab_1_src/src/fk_lite6.py only)
+- <TO_FILL> placeholders in fk_lite6.py replaced with NotImplementedError stubs; the module could not even be imported before
+- Verified: py_compile clean; fk_lite6 and _link_transform raise with guidance
 

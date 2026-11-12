@@ -45,7 +45,12 @@ Initial commit of working lab 1 code
 - Previous commit only fixed np.std find and replaces. This commit fixes that. 
 
 ## v6.1 - Data updated after 11Nov run
-### 12 Nov 2026 (Lab_1_src/src/fk_lite6.py only)
+### 12 Nov 2026 
 - <TO_FILL> placeholders in fk_lite6.py replaced with NotImplementedError stubs; the module could not even be imported before
 - Verified: py_compile clean; fk_lite6 and _link_transform raise with guidance
+
+## v6.2 - docs updated, ransac silent warning fixed
+### 12 Nov 2026 
+- docs/STRUCTURE.md updated with the latest repository structure
+- ransac_calibration.py in src/ fails loudly now when less than 4 poses survive the thresholding
 
